@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Home / X</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+</head>
+<body>
+  <div class="app">
+    <!-- LEFT SIDEBAR -->
+    <header class="sidebar" role="banner">
+      <div class="sidebar__inner">
+        <a href="#" class="logo" aria-label="X">
+          <svg viewBox="0 0 24 24" aria-hidden="true" class="logo__icon">
+            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path>
+          </svg>
+        </a>
+
+        <nav class="nav" aria-label="Primary">
+          <a href="#" class="nav__item nav__item--active">
+            <span class="nav__icon">🏠</span><span class="nav__label">Home</span>
+          </a>
+          <a href="#" class="nav__item">
+            <span class="nav__icon">🔍</span><span class="nav__label">Explore</span>
+          </a>
+          <a href="#" class="nav__item">
+            <span class="nav__icon">🔔</span><span class="nav__label">Notifications</span>
+          </a>
+          <a href="#" class="nav__item">
+            <span class="nav__icon">✉️</span><span class="nav__label">Messages</span>
+          </a>
+          <a href="#" class="nav__item">
+            <span class="nav__icon">📑</span><span class="nav__label">Bookmarks</span>
+          </a>
+          <a href="#" class="nav__item">
+            <span class="nav__icon">👥</span><span class="nav__label">Communities</span>
+          </a>
+          <a href="#" class="nav__item">
+            <span class="nav__icon">👤</span><span class="nav__label">Profile</span>
+          </a>
+          <a href="#" class="nav__item">
+            <span class="nav__icon">⋯</span><span class="nav__label">More</span>
+          </a>
+        </nav>
+
+        <button class="btn btn--post" id="sidebar-post">Post</button>
+
+        <div class="account" role="button" tabindex="0">
+          <img class="avatar" src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' rx='20' fill='%231d9bf0'/%3E%3Ctext x='50%25' y='55%25' font-size='18' fill='white' text-anchor='middle' dominant-baseline='middle' font-family='sans-serif'%3EJ%3C/text%3E%3C/svg%3E" alt="Your avatar" />
+          <div class="account__meta">
+            <span class="account__name">James</span>
+            <span class="account__handle">@james_v</span>
+          </div>
+          <span class="account__more">⋯</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- CENTER FEED -->
+    <main class="main" role="main">
+      <div class="main__header">
+        <h1 class="main__title">Home</h1>
+        <div class="tabs">
+          <button class="tab tab--active" data-tab="for-you">For you</button>
+          <button class="tab" data-tab="following">Following</button>
+        </div>
+      </div>
+
+      <!-- COMPOSE BOX -->
+      <div class="compose">
+        <img class="avatar" src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' rx='20' fill='%231d9bf0'/%3E%3Ctext x='50%25' y='55%25' font-size='18' fill='white' text-anchor='middle' dominant-baseline='middle' font-family='sans-serif'%3EJ%3C/text%3E%3C/svg%3E" alt="Your avatar" />
+        <div class="compose__body">
+          <textarea id="compose-input" class="compose__input" rows="1" placeholder="What is happening?!" maxlength="280"></textarea>
+          <div class="compose__toolbar">
+            <div class="compose__actions">
+              <button class="icon-btn" title="Media">🖼️</button>
+              <button class="icon-btn" title="GIF">GIF</button>
+              <button class="icon-btn" title="Poll">📊</button>
+              <button class="icon-btn" title="Emoji">😊</button>
+              <button class="icon-btn" title="Schedule">📅</button>
+            </div>
+            <div class="compose__submit">
+              <span class="compose__count" id="compose-count">280</span>
+              <button class="btn btn--post" id="compose-post" disabled>Post</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FEED -->
+      <section class="feed" id="feed" aria-label="Timeline"></section>
+    </main>
+
+    <!-- RIGHT SIDEBAR -->
+    <aside class="rightbar" aria-label="Discover">
+      <div class="rightbar__inner">
+        <div class="search">
+          <span class="search__icon">🔍</span>
+          <input type="text" class="search__input" placeholder="Search" aria-label="Search" />
+        </div>
+
+        <div class="panel">
+          <h2 class="panel__title">Subscribe to Premium</h2>
+          <p class="panel__text">Subscribe to unlock new features and if eligible, receive a share of revenue.</p>
+          <button class="btn btn--small">Subscribe</button>
+        </div>
+
+        <div class="panel">
+          <h2 class="panel__title">What's happening</h2>
+          <div class="trends" id="trends"></div>
+          <a href="#" class="panel__more">Show more</a>
+        </div>
+
+        <div class="panel">
+          <h2 class="panel__title">Who to follow</h2>
+          <div class="follows" id="follows"></div>
+          <a href="#" class="panel__more">Show more</a>
+        </div>
+
+        <footer class="rightbar__footer">
+          <span>Terms of Service</span><span>Privacy Policy</span><span>Cookie Policy</span>
+          <span>Accessibility</span><span>Ads info</span><span>More ⋯</span>
+          <span class="rightbar__copy">© 2026 Clone Corp.</span>
+        </footer>
+      </div>
+    </aside>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
