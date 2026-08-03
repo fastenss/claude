@@ -1,48 +1,49 @@
 # Live Screen Translator
 
-Drag-select any part of your monitor and get a **real-time translation** in a
-floating overlay. Great for translating games, videos, PDFs, foreign-language
-UIs, or anything else on screen that you can't copy-paste.
+Drag-select any part of your monitor and get a **real-time translation painted
+directly over the original text**. Great for translating games, videos, PDFs,
+foreign-language UIs, or anything else on screen that you can't copy-paste.
 
 ```
- ┌─────────────────┐          ┌─────────────────┐
- │  こんにちは世界  │  ──────► │  Hello, world   │
- │  (selected      │  capture │  (live overlay  │
- │   screen area)  │  OCR     │   below it)     │
- └─────────────────┘  translate└─────────────────┘
+ ┌─────────────────┐            ┌─────────────────┐
+ │  こんにちは世界  │  ───────►  │  Hello, world   │   ← translation is drawn
+ │  (selected      │  capture   │  (drawn ON TOP  │     on top of the source,
+ │   screen area)  │  OCR       │   of the text)  │     covering it in place
+ └─────────────────┘  translate └─────────────────┘
 ```
 
 ## How it works
 
 ```
-screen region ──► mss (capture) ──► Tesseract (OCR) ──► Google Translate ──► overlay
+region ─► mss capture ─► change check (~2s) ─► EasyOCR ─► Google Translate ─► overlay
 ```
 
-1. You drag a rectangle over the part of the screen you want to read.
-2. Every ~1 second the app screenshots just that region.
-3. Tesseract extracts the text; only *changed* text is re-translated (cached).
-4. `deep-translator` translates it, and the result is shown in a frameless,
-   always-on-top window placed just outside your selection.
+1. You drag a rectangle over the text you want translated.
+2. Every ~2 seconds the app screenshots just that region and compares it to the
+   previous frame. **OCR/translation only run when the pixels actually change**,
+   so nothing is wasted while the screen is static.
+3. When it changes, **EasyOCR** finds each text box and its position.
+4. Each box is translated (results are cached), and the translation is painted
+   over the original in a frameless overlay — with a background colour sampled
+   from the region so it blends in and **completely covers the source text**.
+
+The overlay is briefly hidden each time a screenshot is taken, so the app never
+reads (and re-translates) its own output.
 
 ## Install
-
-**1. Python packages**
 
 ```bash
 pip install -r requirements.txt
 ```
 
-**2. The Tesseract OCR engine** (this is a separate native program, not a pip package):
+That pulls in **EasyOCR** (and its PyTorch / OpenCV dependencies). No separate
+OCR engine or API key is required.
 
-| OS      | Command                                                            |
-|---------|-------------------------------------------------------------------|
-| macOS   | `brew install tesseract`                                          |
-| Ubuntu  | `sudo apt install tesseract-ocr`                                  |
-| Windows | Installer: <https://github.com/UB-Mannheim/tesseract/wiki>       |
-
-To OCR non-English text you also need that language's data pack, e.g.
-`brew install tesseract-lang` (macOS) or `sudo apt install tesseract-ocr-jpn`
-(Ubuntu, Japanese). Without the pack the app falls back to English OCR.
+- **First run downloads the EasyOCR model** for your source language (~tens of
+  MB), so the first translation after picking a language takes a little longer.
+- **GPU is optional** — the app runs EasyOCR on CPU by default.
+- Tkinter ships with Python; on some Linux distros install it separately
+  (`sudo apt install python3-tk`).
 
 ## Usage
 
@@ -52,17 +53,18 @@ python live_translate.py
 
 1. Click **Select region** and drag a box over the text you want translated.
 2. Choose **Translate from** (or leave *Auto-detect*) and **Translate to**.
-3. Click **Start**. A live overlay appears next to your selection.
-4. Drag the overlay anywhere; click **Stop** to pause.
+3. Click **Start**. The translation is drawn over your selection and refreshes
+   whenever the underlying text changes.
+4. Click **Stop** to remove the overlay.
 
 ### Command-line options
 
 ```bash
-# Preset the languages and skip auto-detect
+# Preset the languages
 python live_translate.py --from Japanese --to English
 
-# Faster refresh
-python live_translate.py --interval 0.6
+# Check for changes more often
+python live_translate.py --interval 1.0
 
 # Skip the picker entirely with an explicit region (x,y,width,height)
 python live_translate.py --region 100,100,600,200 --from Spanish --to English
@@ -70,23 +72,27 @@ python live_translate.py --region 100,100,600,200 --from Spanish --to English
 
 Run `python live_translate.py --help` for the full list.
 
-## Supported languages
+## Languages
 
-English, Spanish, French, German, Italian, Portuguese, Dutch, Russian,
-Japanese, Korean, Chinese (Simplified/Traditional), Arabic, Hindi, Turkish,
-Polish, Vietnamese, Thai, Ukrainian, Greek, Hebrew, Indonesian — plus
-**Auto-detect** for the source. (See `LANGUAGES` in `live_translate.py` to add
-more.)
+EasyOCR can **read**: English, Spanish, French, German, Italian, Portuguese,
+Dutch, Russian, Japanese, Korean, Chinese (Simplified/Traditional), Arabic,
+Hindi, Turkish, Polish, Vietnamese, Thai, Ukrainian, and Indonesian.
+
+You can **translate into** any of those plus Greek and Hebrew. *Auto-detect*
+lets Google Translate figure out the source language (OCR falls back to English
+in that mode, so pick the explicit source language for non-Latin scripts).
+
+See the `LANGUAGES` table in `live_translate.py` to add more.
 
 ## Notes & tips
 
-- **Translation uses Google Translate** via `deep-translator`, so it needs an
+- **Translation uses Google Translate** via `deep-translator` — needs an
   internet connection but **no API key**.
-- The overlay is intentionally placed **below/above** your selection so it
-  never ends up screenshotting and re-translating its own text.
-- Bigger, higher-contrast text OCRs far better than tiny or low-contrast text.
-  If OCR is poor, select a tighter region around just the text.
-- On multi-monitor setups the region picker covers the primary display; `mss`
-  itself captures whichever coordinates the region resolves to.
-- Increase `--interval` if you hit Google Translate rate limits; decrease it
-  for snappier updates.
+- Bigger, higher-contrast text OCRs far better. If results are poor, select a
+  tighter region around just the text.
+- The overlay covers the whole selected region opaquely (that's how it fully
+  hides the original); keep your selection close to the text.
+- Raise `--interval` if you hit Google Translate rate limits; lower it for
+  snappier updates.
+- On multi-monitor setups the picker covers the primary display; `mss` captures
+  whatever coordinates the region resolves to.
