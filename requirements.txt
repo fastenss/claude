@@ -1,0 +1,7 @@
+# Live screen translator — Python dependencies.
+# (Tkinter ships with the standard library on most platforms.)
+
+mss>=9.0.1            # fast cross-platform screen capture
+Pillow>=10.0.0        # image handling for OCR
+pytesseract>=0.3.10   # Python bindings for the Tesseract OCR engine
+deep-translator>=1.11.4  # Google Translate backend (no API key required)
