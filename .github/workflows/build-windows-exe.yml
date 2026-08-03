@@ -1,0 +1,43 @@
+name: Build Windows EXE
+
+# Produces the packaged LiveScreenTranslator.exe on a Windows runner.
+# Trigger manually from the Actions tab, or by pushing a v* tag.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Build executable
+        run: pyinstaller --noconfirm live_translate.spec
+
+      - name: Package artifact
+        run: Compress-Archive -Path dist/LiveScreenTranslator/* -DestinationPath LiveScreenTranslator-windows.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LiveScreenTranslator-windows
+          path: LiveScreenTranslator-windows.zip
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: LiveScreenTranslator-windows.zip

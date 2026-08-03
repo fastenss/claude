@@ -26,6 +26,8 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Optional
 
+IS_WINDOWS = sys.platform.startswith("win")
+
 
 # --------------------------------------------------------------------------- #
 # Language tables
@@ -116,6 +118,82 @@ def images_differ(prev_thumb, new_thumb) -> bool:
     if prev_thumb.shape != new_thumb.shape:
         return True
     return float(np.mean(np.abs(prev_thumb - new_thumb))) > DIFF_THRESHOLD
+
+
+class Capturer:
+    """Grabs a screen region as an (H, W, 3) RGB array (or None if unchanged)."""
+
+    def grab(self, region: "Region"):  # pragma: no cover - interface
+        raise NotImplementedError
+
+    def close(self):  # pragma: no cover - interface
+        pass
+
+
+class DxcamCapturer(Capturer):
+    """DirectX Desktop Duplication capture (Windows, GPU-accelerated).
+
+    ``grab`` returns None when the desktop has produced no new frame since the
+    last call, which lets us skip work without any change comparison at all.
+    Because the overlay is flagged WDA_EXCLUDEFROMCAPTURE, dxcam never sees our
+    translation, so the overlay can stay on screen while we capture.
+    """
+
+    def __init__(self):
+        self._dxcam = _require("dxcam", "dxcam")
+        self._camera = self._dxcam.create(output_color="RGB")
+        if self._camera is None:
+            raise RuntimeError("dxcam could not create a capture device.")
+
+    def grab(self, region: "Region"):
+        r = (region.x, region.y, region.x + region.w, region.y + region.h)
+        return self._camera.grab(region=r)  # RGB ndarray, or None if no new frame
+
+    def close(self):
+        try:
+            self._camera.release()
+        except Exception:
+            pass
+        try:
+            self._dxcam.clean_up()
+        except Exception:
+            pass
+
+
+class MssCapturer(Capturer):
+    """Cross-platform fallback capture via mss (always returns a fresh frame)."""
+
+    def grab(self, region: "Region"):
+        return screenshot_rgb(region)
+
+
+def make_capturer() -> "tuple[Capturer, str]":
+    """Prefer dxcam on Windows; fall back to mss elsewhere / on failure."""
+    if IS_WINDOWS:
+        try:
+            return DxcamCapturer(), "dxcam"
+        except Exception:
+            pass
+    return MssCapturer(), "mss"
+
+
+def exclude_from_capture(win) -> bool:
+    """Flag a Tk window WDA_EXCLUDEFROMCAPTURE so it stays visible on screen but
+    is omitted from screen capture. Windows 10 2004+ only; returns True on success.
+    """
+    if not IS_WINDOWS:
+        return False
+    try:
+        import ctypes
+
+        win.update_idletasks()
+        GA_ROOT = 2
+        WDA_EXCLUDEFROMCAPTURE = 0x00000011
+        user32 = ctypes.windll.user32
+        hwnd = user32.GetAncestor(int(win.winfo_id()), GA_ROOT)
+        return bool(user32.SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE))
+    except Exception:
+        return False
 
 
 # --------------------------------------------------------------------------- #
@@ -259,6 +337,8 @@ def run_gui(initial: Settings):
         "ocr_busy": False,
         "prev_thumb": None,
         "after_id": None,
+        "capturer": None,
+        "backend": "mss",
     }
 
     root = tk.Tk()
@@ -318,7 +398,7 @@ def run_gui(initial: Settings):
     # ------------------------------------------------------------------ #
     # In-place translation overlay (covers the region)
     # ------------------------------------------------------------------ #
-    overlay = {"win": None, "frame": None, "labels": []}
+    overlay = {"win": None, "frame": None, "labels": [], "excluded": False}
 
     def create_overlay(region: Region):
         win = tk.Toplevel(root)
@@ -328,8 +408,13 @@ def run_gui(initial: Settings):
         frame = tk.Frame(win, bg="#000000", width=region.w, height=region.h)
         frame.pack(fill="both", expand=True)
         frame.pack_propagate(False)
+        # Ask Windows to keep this window out of screen capture. If that works
+        # we can leave it on screen permanently (no hide/show flicker).
+        win.deiconify()
+        overlay["excluded"] = exclude_from_capture(win)
         overlay["win"], overlay["frame"], overlay["labels"] = win, frame, []
-        win.withdraw()
+        if not overlay["excluded"]:
+            win.withdraw()  # fall back to the hide-before-capture cycle
 
     def hide_overlay():
         if overlay["win"] is not None:
@@ -424,22 +509,34 @@ def run_gui(initial: Settings):
     def tick():
         if not state["running"]:
             return
-        hide_overlay()  # never OCR our own translation
-        root.after(CAPTURE_DELAY_MS, capture_step)
+        if overlay["excluded"]:
+            # The overlay is invisible to capture, so no hide/show needed.
+            capture_step()
+        else:
+            hide_overlay()  # otherwise, don't OCR our own translation
+            root.after(CAPTURE_DELAY_MS, capture_step)
 
     def capture_step():
         if not state["running"]:
             return
         cfg = settings.snapshot()
         try:
-            rgb = screenshot_rgb(cfg.region)
+            rgb = state["capturer"].grab(cfg.region)
         except MissingDependency as exc:
             status_var.set(str(exc).splitlines()[0])
             stop()
             return
         except Exception as exc:
             status_var.set(f"Capture failed: {exc}")
-            show_overlay()
+            if not overlay["excluded"]:
+                show_overlay()
+            schedule_next()
+            return
+
+        # dxcam returns None when the desktop produced no new frame at all.
+        if rgb is None:
+            if not overlay["excluded"]:
+                show_overlay()
             schedule_next()
             return
 
@@ -458,8 +555,8 @@ def run_gui(initial: Settings):
                 job_queue.put_nowait(job)
             except queue.Full:
                 state["ocr_busy"] = False
-            # Leave the overlay hidden; it reappears once the result renders.
-        else:
+            # When not excluded, the overlay stays hidden until the result renders.
+        elif not overlay["excluded"]:
             show_overlay()  # unchanged -> just keep covering the original
 
         schedule_next()
@@ -502,13 +599,28 @@ def run_gui(initial: Settings):
         )
         state["prev_thumb"] = None
         state["ocr_busy"] = False
+
+        if state["capturer"] is None:
+            try:
+                state["capturer"], state["backend"] = make_capturer()
+            except MissingDependency as exc:
+                status_var.set(str(exc).splitlines()[0])
+                return
+
         destroy_overlay()
         create_overlay(settings.snapshot().region)
         state["running"] = True
         start_btn.config(state="disabled")
         stop_btn.config(state="normal")
-        status_var.set("Running…")
+        mode = ("no-flicker (capture-excluded overlay)"
+               if overlay["excluded"] else "hide-on-capture")
+        status_var.set(f"Running · capture: {state['backend']} · {mode}")
         tick()
+
+    def _release_capturer():
+        if state["capturer"] is not None:
+            state["capturer"].close()
+            state["capturer"] = None
 
     def stop():
         state["running"] = False
@@ -516,12 +628,14 @@ def run_gui(initial: Settings):
             root.after_cancel(state["after_id"])
             state["after_id"] = None
         destroy_overlay()
+        _release_capturer()
         start_btn.config(state="normal")
         stop_btn.config(state="disabled")
         status_var.set("Stopped.")
 
     def on_close():
         state["running"] = False
+        _release_capturer()
         try:
             job_queue.put_nowait(None)
         except queue.Full:

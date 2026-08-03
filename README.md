@@ -15,11 +15,11 @@ foreign-language UIs, or anything else on screen that you can't copy-paste.
 ## How it works
 
 ```
-region ─► mss capture ─► change check (~2s) ─► EasyOCR ─► Google Translate ─► overlay
+region ─► dxcam capture ─► change check (~2s) ─► EasyOCR ─► Google Translate ─► overlay
 ```
 
 1. You drag a rectangle over the text you want translated.
-2. Every ~2 seconds the app screenshots just that region and compares it to the
+2. Every ~2 seconds the app captures just that region and compares it to the
    previous frame. **OCR/translation only run when the pixels actually change**,
    so nothing is wasted while the screen is static.
 3. When it changes, **EasyOCR** finds each text box and its position.
@@ -27,17 +27,47 @@ region ─► mss capture ─► change check (~2s) ─► EasyOCR ─► Google
    over the original in a frameless overlay — with a background colour sampled
    from the region so it blends in and **completely covers the source text**.
 
-The overlay is briefly hidden each time a screenshot is taken, so the app never
-reads (and re-translates) its own output.
+### No-flicker overlay (Windows)
 
-## Install
+On Windows the app captures with **dxcam** (DirectX Desktop Duplication) and
+marks the translation overlay with **`WDA_EXCLUDEFROMCAPTURE`**
+(`SetWindowDisplayAffinity`). That flag keeps the overlay fully visible on your
+screen but makes it **invisible to the capture pipeline** — so dxcam only ever
+sees the original text underneath, and the overlay can stay up permanently. No
+hide/show flicker.
+
+On other platforms (or if the flag can't be set, e.g. older Windows) the app
+falls back to **mss** capture and briefly hides the overlay for each frame
+instead. The status bar shows which mode is active.
+
+## Get it
+
+### Option A — download the Windows .exe (no Python needed)
+
+Grab `LiveScreenTranslator-windows.zip` from the repo's **Actions → Build
+Windows EXE** run (or from a release), unzip it, and run
+`LiveScreenTranslator.exe`. The dxcam no-flicker path only exists on Windows,
+so this is the recommended way to use it there.
+
+To build the .exe yourself on a Windows machine:
+
+```bat
+build.bat
+```
+
+…which produces `dist\LiveScreenTranslator\LiveScreenTranslator.exe`. (See
+`live_translate.spec` for the PyInstaller configuration.)
+
+### Option B — run from source
 
 ```bash
 pip install -r requirements.txt
+python live_translate.py
 ```
 
-That pulls in **EasyOCR** (and its PyTorch / OpenCV dependencies). No separate
-OCR engine or API key is required.
+That pulls in **EasyOCR** (and its PyTorch / OpenCV dependencies) plus a capture
+backend (**dxcam** on Windows, **mss** elsewhere). No separate OCR engine or API
+key is required.
 
 - **First run downloads the EasyOCR model** for your source language (~tens of
   MB), so the first translation after picking a language takes a little longer.
